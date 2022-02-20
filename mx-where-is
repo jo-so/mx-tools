@@ -1,16 +1,12 @@
 #!/bin/zsh -fuC
 
-# Auth token of Matrix client seesion of a moderator
-# Element -> User settings -> Help & About -> Advanced
-auth_token=MDAxYWxvY2F0aW9uIGFsZWEuZ251dS5kZQowMDEzaWRlbnRpZmllciBrZXkKMDAxMGNpZCBnZW4gPSAxCjAwMjZjaWQgdXNlcl9pZCA9IEBqb2VyZzphbGVhLmdudXUuZGUKMDAxNmNpZCB0eXBlID0gYWNjZXNzCjAwMjFjaWQgbm9uY2UgPSBvRlo5cy1AMzlTNXlvVlMmCjAwMmZzaWduYXR1cmUgZAU3_5VCIQY6kzgQrtDpm4uoL2UPdLdIzS_F6M2gwwkK
+if [[ -e ~/.config/mx-tools.rc ]]
+then
+    . ~/.config/mx-tools.rc
+fi
 
-# where's the Matrix server located
-server_url=https://alea.gnuu.de
-
-# database name in Postgres
-db_name=matrix
-
-alias psql='sudo -u postgres psql'
+# poor mens test if value is set
+: $auth_token $server_url $db_name
 
 if [[ $# -lt 1 ]]
 then

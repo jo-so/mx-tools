@@ -1,0 +1,87 @@
+#!/bin/zsh -fuC
+
+: ${redact_reason="Nazi-Spam"}
+
+# How many seconds before and after to include
+sec_before=$((10 * 60))
+sec_after=$((5 * 60))
+
+if [[ -e ~/.config/mx-tools.rc ]]
+then
+    . ~/.config/mx-tools.rc
+fi
+
+# poor mens test if value is set
+: $auth_token $server_url $db_name
+
+if [[ $# -lt 1 ]]
+then
+    # TODO: bessere Meldung
+    echo "ARG missing" >&2
+    exit 1
+fi
+
+# try to extract an event ID from something like the message URL:
+# https://matrix.to/#/!POnsZmdSAzRrxMaTOj:matrix.kraut.space/$ey4dKgeFoL8qqSQ_3bqLEye8nhqcC5dr9fz88W5XNbA?via=matrix.kraut.space&via=matrix.org&via=tchncs.de
+
+bad_event_id=\$${${1##*\$}%%[!a-zA-Z0-9_-]*}
+
+if [[ -z $bad_event_id ]]
+then
+    echo "Unknown input format" >&1
+    exit 1
+fi
+
+echo "Using $bad_event_id as anchor of message chain"
+
+room_id=!${${1##*!}%%[!a-zA-Z0-9_:.]*}
+
+if [[ -z $room_id ]]
+then
+    echo "Unknown input format" >&1
+    exit 1
+fi
+
+echo "room_id=$room_id"
+
+echo
+
+psql -X -c "
+SELECT e2.event_id, to_timestamp(e2.origin_server_ts / 1000) AS time, e2.sender,
+  ej.json::json->'content'->>'body' AS body
+FROM events e1, events e2
+JOIN event_json ej ON e2.event_id = ej.event_id
+WHERE e1.sender = e2.sender AND e1.room_id = e2.room_id
+  AND e1.event_id = '$bad_event_id'
+  AND e2.type = 'm.room.message'
+  AND e2.origin_server_ts BETWEEN e1.origin_server_ts - $sec_before * 1000 AND e1.origin_server_ts + $sec_after * 1000
+ORDER BY time
+" $db_name \
+    || exit
+
+echo "Press enter to redact events or press Ctrl-c to cancel"
+read junk
+
+cnt=1
+tx_start=redact-$RANDOM
+
+# set -x
+for event_id in $(
+psql -X -t -A -c "
+SELECT e2.event_id
+FROM events e1, events e2
+WHERE e1.sender = e2.sender AND e1.room_id = e2.room_id
+  AND e1.event_id = '$bad_event_id'
+  AND e2.type = 'm.room.message'
+  AND e2.origin_server_ts BETWEEN e1.origin_server_ts - $sec_before * 1000 AND e1.origin_server_ts + $sec_after * 1000
+" $db_name
+)
+do
+    echo -n "Redacting $event_id no $cnt ..."
+    # : \
+    curl -X PUT --data-raw "{\"reason\":\"$redact_reason\"}" \
+      -H "Authorization: Bearer $auth_token" \
+      $server_url/_matrix/client/r0/rooms/$room_id/redact/$event_id/$tx_start-$((cnt += 1)) \
+        || exit
+    echo "\r"
+done

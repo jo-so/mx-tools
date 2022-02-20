@@ -1,0 +1,37 @@
+#!/bin/zsh -fuC
+
+if [[ -e ~/.config/mx-admin.rc ]]
+then
+    . ~/.config/mx-admin.rc
+fi
+
+# poor mens test if value is set
+: $auth_token $server_url $db_name
+
+: ${time_range_sec=$((12 * 60 * 60))}
+
+if [[ $# -lt 1 ]]
+then
+    # TODO: bessere Meldung
+    echo "ARG missing" >&2
+    exit 1
+fi
+
+msg=$1
+
+psql -X -c "
+SELECT event_id, to_timestamp(origin_server_ts / 1000) AS time, sender,
+  coalesce(canonical_alias, room_id) as room,
+  json::json->'content'->>'body',
+  'https://matrix.to/#/' || room_id || '/' || event_id as link
+FROM events
+NATURAL JOIN event_json
+NATURAL JOIN room_stats_state
+WHERE json LIKE '%\"$msg\"%'
+  AND origin_server_ts > (EXTRACT(EPOCH FROM now()) - $time_range_sec) * 1000
+ORDER BY time
+LIMIT 20
+" $db_name \
+    || exit
+
+# json::json->'content'->>'body' = '$msg'

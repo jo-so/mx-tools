@@ -1,0 +1,32 @@
+#!/bin/zsh -fuC
+
+# Auth token of Matrix client seesion of a moderator
+# Element -> User settings -> Help & About -> Advanced
+auth_token=MDAxYWxvY2F0aW9uIGFsZWEuZ251dS5kZQowMDEzaWRlbnRpZmllciBrZXkKMDAxMGNpZCBnZW4gPSAxCjAwMjZjaWQgdXNlcl9pZCA9IEBqb2VyZzphbGVhLmdudXUuZGUKMDAxNmNpZCB0eXBlID0gYWNjZXNzCjAwMjFjaWQgbm9uY2UgPSBvRlo5cy1AMzlTNXlvVlMmCjAwMmZzaWduYXR1cmUgZAU3_5VCIQY6kzgQrtDpm4uoL2UPdLdIzS_F6M2gwwkK
+
+# where's the Matrix server located
+server_url=https://alea.gnuu.de
+
+# database name in Postgres
+db_name=matrix
+
+alias psql='sudo -u postgres psql'
+
+if [[ $# -lt 1 ]]
+then
+    # TODO: bessere Meldung
+    echo "ARG missing" >&2
+    exit 1
+fi
+
+user_id=$1
+
+psql -X -c "
+SELECT to_timestamp(origin_server_ts / 1000) AS time,
+  coalesce(canonical_alias, room_id) as room
+FROM events
+NATURAL JOIN room_stats_state
+WHERE sender = '$user_id' AND type = 'm.room.member'
+ORDER BY time
+" $db_name \
+    || exit

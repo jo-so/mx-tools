@@ -1,0 +1,11 @@
+# Auth token of Matrix client seesion of a moderator
+# Element -> User settings -> Help & About -> Advanced
+auth_token=...
+
+# where's the Matrix server located
+server_url=https://matrix.org
+
+# database name in Postgres
+db_name=matrix
+
+# maybe: alias psql='sudo -u postgres psql'
